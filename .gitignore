@@ -210,3 +210,7 @@ tmp/
 notebooks/
 data/
 docs/
+.streamlit/secrets.toml
+.streamlit/google_credentials.json
+uploads/
+tests/
