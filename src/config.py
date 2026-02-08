@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     # Google Gemini
     google_api_key: str = ""
 
+    # Embedding
+    dense_embedding_model: str = "models/gemini-embedding-001"
+    dense_embedding_dim: int = 3072
+    embed_batch_size: int = 100
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
