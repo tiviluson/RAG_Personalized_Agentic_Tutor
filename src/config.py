@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     Loaded from environment variables and/or .env file.
     """
 
+    # Qdrant
+    qdrant_host: str = "localhost"
+    qdrant_port: int = 6333
+    qdrant_api_key: str | None = None
+
     # Google Gemini
     google_api_key: str = ""
 
