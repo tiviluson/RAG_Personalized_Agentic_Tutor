@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     dense_embedding_dim: int = 3072
     embed_batch_size: int = 100
 
+    # Qdrant batching
+    upsert_batch_size: int = 64
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
