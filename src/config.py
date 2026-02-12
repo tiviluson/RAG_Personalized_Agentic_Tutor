@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     dense_embedding_dim: int = 3072
     embed_batch_size: int = 100
 
+    # Upload
+    max_upload_size_mb: int = 50
+    upload_dir: str = "uploads"
+
     # Qdrant batching
     upsert_batch_size: int = 64
 
