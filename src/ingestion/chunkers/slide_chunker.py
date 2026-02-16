@@ -29,6 +29,8 @@ def chunk_slides(slide_raw: list[SlideData]) -> list[dict]:
 
     for slide in slide_raw:
         text = slide["text"]
+        if slide.get("used_vision") and slide.get("visual_text"):
+            text = f"{text}\n\n{slide['visual_text']}".strip()
         tokens = enc.encode(text)
 
         if len(tokens) <= SLIDE_MAX_TOKENS:
