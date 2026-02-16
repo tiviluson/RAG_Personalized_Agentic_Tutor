@@ -83,7 +83,7 @@ async def upload_documents(
     files: list[UploadFile] = File(...),
     doc_type: DocType = Form(...),
     role: Literal["lecturer", "student"] = Form(...),
-    course_id: int = Form(...),
+    course_id: str = Form(...),
     student_id: str | None = Form(None),
     module_name: str = Form(""),
     module_week: int | None = Form(None),
