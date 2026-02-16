@@ -25,7 +25,7 @@ from src.ingestion.loaders import (
     load_slide_pdf,
     load_textbook_pdf,
 )
-from src.ingestion.storage import upsert_chunks
+from src.ingestion.storage import find_doc_by_hash, file_hash, upsert_chunks
 from src.ingestion.types import DocType
 
 
@@ -62,6 +62,31 @@ def run_ingestion(
     )
 
     try:
+        # -- Dedup check --
+        content_hash = file_hash(file_path)
+        collection = _get_collection(metadata)
+        existing_doc_id = find_doc_by_hash(client, collection, content_hash)
+        if existing_doc_id:
+            logger.info(
+                "[ingest] Skipping duplicate file (hash={}, existing doc_id={})",
+                content_hash[:12],
+                existing_doc_id,
+            )
+            set_job_status(
+                job_id,
+                status="complete",
+                progress=100,
+                doc_id=existing_doc_id,
+                chunks_indexed=0,
+            )
+            return {
+                "doc_id": existing_doc_id,
+                "chunks_indexed": 0,
+                "doc_type": doc_type.value,
+                "collection": collection,
+                "skipped": "duplicate",
+            }
+
         # -- Load --
         set_job_status(job_id, status="loading", progress=10)
         raw = _load(file_path, doc_type)
@@ -78,6 +103,7 @@ def run_ingestion(
         set_job_status(job_id, status="storing", progress=80)
         collection = _get_collection(metadata)
         extra_meta = _build_extra_meta(metadata)
+        extra_meta["file_hash"] = content_hash
         n = upsert_chunks(client, collection, chunks, doc_id=doc_id, extra_meta=extra_meta)
 
         # -- Cleanup intermediate data to free memory --

@@ -171,6 +171,36 @@ def delete_chunks_by_doc_id(
     logger.info("Deleted chunks with doc_id='{}' from '{}'", doc_id, collection_name)
 
 
+def find_doc_by_hash(
+    client: QdrantClient, collection_name: str, content_hash: str
+) -> str | None:
+    """Check if a document with the given file hash already exists.
+
+    Args:
+        client (QdrantClient): An initialised Qdrant client.
+        collection_name (str): Collection to search in.
+        content_hash (str): SHA-256 hex digest of the file.
+
+    Returns:
+        str | None: The ``doc_id`` of the existing document, or ``None`` if not found.
+    """
+    try:
+        results, _ = client.scroll(
+            collection_name=collection_name,
+            scroll_filter=Filter(
+                must=[FieldCondition(key="file_hash", match=MatchValue(value=content_hash))]
+            ),
+            limit=1,
+            with_payload=["doc_id"],
+            with_vectors=False,
+        )
+        if results:
+            return results[0].payload["doc_id"]
+    except Exception:
+        pass
+    return None
+
+
 def file_hash(path: str | Path) -> str:
     """Compute SHA-256 hash of a file for deduplication.
 
