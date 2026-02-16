@@ -12,6 +12,7 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     SparseIndexParams,
     SparseVector,
@@ -24,6 +25,18 @@ from src.config import settings
 COLLECTIONS = {
     "course_content": "Lecturer-uploaded course materials",
     "student_notes": "Student-uploaded personal notes (namespace-isolated by student_id)",
+}
+
+_PAYLOAD_INDEXES: dict[str, PayloadSchemaType] = {
+    "doc_id": PayloadSchemaType.KEYWORD,
+    "course_id": PayloadSchemaType.KEYWORD,
+    "student_id": PayloadSchemaType.KEYWORD,
+    "file_hash": PayloadSchemaType.KEYWORD,
+    "module_week": PayloadSchemaType.INTEGER,
+    "doc_type": PayloadSchemaType.KEYWORD,
+    "content_category": PayloadSchemaType.KEYWORD,
+    "topic_tags": PayloadSchemaType.KEYWORD,
+    "extraction_method": PayloadSchemaType.KEYWORD,
 }
 
 
@@ -65,6 +78,9 @@ def create_collections(
                 )
             },
         )
+
+        for field, schema in _PAYLOAD_INDEXES.items():
+            client.create_payload_index(name, field, schema)
         logger.info("Created collection: {} -- {}", name, description)
 
 
