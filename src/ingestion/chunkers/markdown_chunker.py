@@ -119,9 +119,9 @@ def chunk_markdown(
             "section_headers": doc.metadata,
             "chapter": doc.metadata.get("h1"),
             "section": doc.metadata.get("h2"),
-            "token_count": _token_len(restored_text),
             "doc_type": "markdown_note",
             "source_filename": source_filename,
+            "extraction_method": "extracted (raw)",
         })
 
     logger.info("Chunked markdown into {} chunks", len(chunks))

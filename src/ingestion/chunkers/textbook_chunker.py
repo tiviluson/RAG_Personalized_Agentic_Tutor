@@ -43,7 +43,7 @@ def chunk_textbook(doc: DoclingDocument) -> list[dict]:
     Returns:
         A list of chunk dicts with keys: ``text``, ``chunk_index``,
         ``page_num``, ``section_headings``, ``chapter``, ``section``,
-        ``token_count``, ``doc_type``.
+        ``doc_type``, ``extraction_method``.
     """
     chunker = HybridChunker(
         tokenizer=_chunker_tokenizer,
@@ -51,6 +51,7 @@ def chunk_textbook(doc: DoclingDocument) -> list[dict]:
     )
 
     chunks = []
+    token_counts = []
     for i, chunk in enumerate(chunker.chunk(doc)):
         page_no = _get_page_no(chunk)
 
@@ -58,7 +59,7 @@ def chunk_textbook(doc: DoclingDocument) -> list[dict]:
         if chunk.meta and chunk.meta.headings:
             headings = list(chunk.meta.headings)
 
-        token_count = _chunker_tokenizer.count_tokens(chunk.text)
+        token_counts.append(_chunker_tokenizer.count_tokens(chunk.text))
 
         chunks.append({
             "text": chunk.text,
@@ -67,8 +68,8 @@ def chunk_textbook(doc: DoclingDocument) -> list[dict]:
             "section_headings": headings,
             "chapter": headings[0] if headings else None,
             "section": headings[1] if len(headings) > 1 else None,
-            "token_count": token_count,
             "doc_type": "textbook",
+            "extraction_method": "extracted (raw)",
         })
 
     logger.info(
@@ -76,8 +77,7 @@ def chunk_textbook(doc: DoclingDocument) -> list[dict]:
         len(chunks),
         TEXTBOOK_MAX_TOKENS,
     )
-    if chunks:
-        token_counts = [c["token_count"] for c in chunks]
+    if token_counts:
         logger.info(
             "  Token stats: min={}, max={}, mean={:.0f}",
             min(token_counts),

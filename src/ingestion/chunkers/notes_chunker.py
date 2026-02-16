@@ -23,10 +23,8 @@ def chunk_scanned_pages(pages_data: list[PageData]) -> list[dict]:
     Returns:
         A list of chunk dicts with keys: ``text``, ``chunk_index``,
         ``page_num``, ``doc_type``, ``source_filename``,
-        ``ocr_method``, ``token_count``.
+        ``extraction_method``.
     """
-    # Bug fix #3: use token values directly (not * 4) since
-    # length_function=_token_len already measures in tokens
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=NOTES_MAX_TOKENS,
         chunk_overlap=NOTES_OVERLAP,
@@ -46,8 +44,7 @@ def chunk_scanned_pages(pages_data: list[PageData]) -> list[dict]:
                 "page_num": page["page_num"],
                 "doc_type": page["doc_type"],
                 "source_filename": page["source_filename"],
-                "ocr_method": page["ocr_method"],
-                "token_count": _token_len(split_text),
+                "extraction_method": page["extraction_method"],
             })
             chunk_idx += 1
 

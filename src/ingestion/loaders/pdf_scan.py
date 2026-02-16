@@ -120,7 +120,7 @@ def load_scanned_pdf(
             pages_data.append({
                 "text": native_text,
                 "page_num": page_num + 1,
-                "ocr_method": "native",
+                "extraction_method": "extracted (raw)",
             })
             continue
 
@@ -131,19 +131,19 @@ def load_scanned_pdf(
             client = get_genai_client()
             if client:
                 text = _ocr_handwritten_image(image_bytes)
-                ocr_method = "gemini_vision"
+                extraction_method = "generated"
             else:
                 text = f"[Handwritten page {page_num + 1}: set GOOGLE_API_KEY]"
-                ocr_method = "skipped"
+                extraction_method = "extracted (raw)"
         else:
             pil_image = Image.open(io.BytesIO(image_bytes))
             text = _ocr_printed_image(pil_image)
-            ocr_method = "surya"
+            extraction_method = "extracted (ocr)"
 
         pages_data.append({
             "text": text,
             "page_num": page_num + 1,
-            "ocr_method": ocr_method,
+            "extraction_method": extraction_method,
         })
 
     doc.close()
@@ -154,9 +154,9 @@ def load_scanned_pdf(
         p["doc_type"] = doc_type
         p["source_filename"] = source_filename
 
-    methods = {p["ocr_method"] for p in pages_data}
+    methods = {p["extraction_method"] for p in pages_data}
     logger.info(
-        "Loaded {} pages from {} -- OCR methods: {}",
+        "Loaded {} pages from {} -- extraction methods: {}",
         len(pages_data),
         source_filename,
         methods,

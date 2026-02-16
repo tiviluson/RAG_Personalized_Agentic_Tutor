@@ -36,15 +36,14 @@ class PageData(TypedDict, total=True):
         page_num: Zero-based page index in the source PDF.
         doc_type: Document type label (e.g. ``"lecture_note"``).
         source_filename: Original filename of the uploaded document.
-        ocr_method: OCR method used (``"native"``, ``"surya"``,
-            ``"gemini_vision"``, or ``"skipped"``).
+        extraction_method: How the text was obtained (``"extracted"``, ``"generated"``, or ``"hybrid"``).
     """
 
     text: str
     page_num: int
     doc_type: str
     source_filename: str
-    ocr_method: str
+    extraction_method: str
 
 
 class SlideData(TypedDict, total=True):
