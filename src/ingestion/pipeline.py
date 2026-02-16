@@ -102,6 +102,12 @@ def run_ingestion(
         set_job_status(job_id, status="failed", error=str(e))
         raise
 
+    finally:
+        try:
+            file_path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("[ingest] Could not delete uploaded file: {}", file_path)
+
 
 def _load(file_path: Path, doc_type: DocType):
     """Dispatch to the appropriate loader.
