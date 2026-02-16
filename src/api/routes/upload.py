@@ -48,13 +48,13 @@ def _save_upload(file: UploadFile, job_id: str) -> Path:
 
 
 def _validate_upload(file: UploadFile) -> None:
-    """Validate file extension and size.
+    """Validate file extension, magic bytes, and size.
 
     Args:
-        file: The uploaded file from FastAPI.
+        file (UploadFile): The uploaded file from FastAPI.
 
     Raises:
-        HTTPException: If the file extension or size is invalid.
+        HTTPException: If the file extension, content, or size is invalid.
     """
     ext = Path(file.filename).suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -67,6 +67,14 @@ def _validate_upload(file: UploadFile) -> None:
             status_code=413,
             detail=f"File exceeds {settings.max_upload_size_mb} MB limit.",
         )
+    if ext == ".pdf":
+        header = file.file.read(5)
+        file.file.seek(0)
+        if header != b"%PDF-":
+            raise HTTPException(
+                status_code=422,
+                detail="File has .pdf extension but is not a valid PDF.",
+            )
 
 
 @router.post("/upload", response_model=BatchUploadResponse)
