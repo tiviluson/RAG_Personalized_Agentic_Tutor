@@ -99,7 +99,7 @@ def _build_payload(chunk: dict, doc_id: str, extra_meta: dict) -> dict:
     Returns:
         A payload dict suitable for ``PointStruct``.
     """
-    excluded = {"dense_vector", "sparse_vector", "used_vision"}
+    excluded = {"dense_vector", "sparse_vector", "used_vision", "visual_text"}
     payload = {k: v for k, v in chunk.items() if k not in excluded}
     payload.update({
         "doc_id": doc_id,
