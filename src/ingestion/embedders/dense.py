@@ -10,29 +10,8 @@ from tenacity import (
     wait_exponential,
 )
 
+from src.clients import get_genai_client
 from src.config import settings
-
-_genai_client: genai.Client | None = None
-
-
-def _get_genai_client() -> genai.Client:
-    """Return a lazily-initialised Gemini client singleton.
-
-    Returns:
-        An initialised ``genai.Client``.
-
-    Raises:
-        RuntimeError: If ``GOOGLE_API_KEY`` is not configured.
-    """
-    global _genai_client
-    if _genai_client is None:
-        if not settings.google_api_key:
-            raise RuntimeError(
-                "GOOGLE_API_KEY is required for dense embedding. "
-                "Set it in .env or as an environment variable."
-            )
-        _genai_client = genai.Client(api_key=settings.google_api_key)
-    return _genai_client
 
 
 @retry(
@@ -44,11 +23,11 @@ def _embed_batch(client: genai.Client, batch: list[str]) -> list[list[float]]:
     """Embed a single batch of texts via the Gemini API.
 
     Args:
-        client: An initialised ``genai.Client``.
-        batch: A list of text strings (max ``embed_batch_size``).
+        client (genai.Client): An initialised Gemini client.
+        batch (list[str]): A list of text strings (max ``embed_batch_size``).
 
     Returns:
-        A list of dense embedding vectors.
+        list[list[float]]: A list of dense embedding vectors.
 
     Raises:
         Exception: Propagated after 3 retry attempts.
@@ -67,16 +46,15 @@ def embed_texts_dense(texts: list[str]) -> list[list[float]]:
     Batches requests according to ``settings.embed_batch_size``.
 
     Args:
-        texts: The text strings to embed.
+        texts (list[str]): The text strings to embed.
 
     Returns:
-        A list of dense embedding vectors, each of length
-        ``settings.dense_embedding_dim``.
+        list[list[float]]: A list of dense embedding vectors, each of length ``settings.dense_embedding_dim``.
 
     Raises:
         RuntimeError: If ``GOOGLE_API_KEY`` is not configured.
     """
-    client = _get_genai_client()
+    client = get_genai_client(required=True)
     logger.info("Embedding {} texts with Gemini", len(texts))
     all_embeddings: list[list[float]] = []
     for i in range(0, len(texts), settings.embed_batch_size):

@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import fitz
-from google import genai
 from google.genai import types
 from loguru import logger
 from tenacity import (
@@ -13,24 +12,10 @@ from tenacity import (
     wait_exponential,
 )
 
-from src.config import settings
+from src.clients import get_genai_client
 from src.ingestion.types import SlideData
 
 SLIDE_SPARSE_THRESHOLD = 100  # chars -- below this, use Gemini Vision
-
-_genai_client: genai.Client | None = None
-
-
-def _get_genai_client() -> genai.Client | None:
-    """Return a lazily-initialised Gemini client singleton.
-
-    Returns:
-        A ``genai.Client`` if the API key is configured, else ``None``.
-    """
-    global _genai_client
-    if _genai_client is None and settings.google_api_key:
-        _genai_client = genai.Client(api_key=settings.google_api_key)
-    return _genai_client
 
 
 @retry(
@@ -50,7 +35,7 @@ def _describe_slide_with_gemini(image_bytes: bytes) -> str:
     Raises:
         Exception: Propagated after 3 retry attempts.
     """
-    client = _get_genai_client()
+    client = get_genai_client()
     prompt = (
         "This is a university lecture slide. "
         "1. List ALL text visible on the slide, preserving bullet structure. "
@@ -90,7 +75,7 @@ def load_slide_pdf(pdf_path: str | Path) -> list[SlideData]:
         visual_text = ""  # bug fix #1: reset per slide (was outside loop)
 
         if len(text) < SLIDE_SPARSE_THRESHOLD:
-            client = _get_genai_client()
+            client = get_genai_client()
             if client:
                 pixmap = page.get_pixmap(dpi=150)
                 image_bytes = pixmap.tobytes("png")

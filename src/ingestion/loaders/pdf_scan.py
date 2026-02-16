@@ -4,7 +4,6 @@ import io
 from pathlib import Path
 
 import fitz
-from google import genai
 from google.genai import types
 from loguru import logger
 from PIL import Image
@@ -15,26 +14,13 @@ from tenacity import (
     wait_exponential,
 )
 
-from src.config import settings
+from src.clients import get_genai_client
 from src.ingestion.types import PageData
 
 NATIVE_TEXT_THRESHOLD = 100  # chars per page -- below this, treat as scanned
 
-_genai_client: genai.Client | None = None
 _det_predictor = None
 _rec_predictor = None
-
-
-def _get_genai_client() -> genai.Client | None:
-    """Return a lazily-initialised Gemini client singleton.
-
-    Returns:
-        A ``genai.Client`` if the API key is configured, else ``None``.
-    """
-    global _genai_client
-    if _genai_client is None and settings.google_api_key:
-        _genai_client = genai.Client(api_key=settings.google_api_key)
-    return _genai_client
 
 
 def _get_surya_predictors():
@@ -87,7 +73,7 @@ def _ocr_handwritten_image(image_bytes: bytes) -> str:
     Raises:
         Exception: Propagated after 3 retry attempts.
     """
-    client = _get_genai_client()
+    client = get_genai_client()
     prompt = (
         "Transcribe ALL handwritten text from this note page exactly as written. "
         "Preserve the structure, headings, and bullet points. "
@@ -142,7 +128,7 @@ def load_scanned_pdf(
         image_bytes = pixmap.tobytes("png")
 
         if is_handwritten:
-            client = _get_genai_client()
+            client = get_genai_client()
             if client:
                 text = _ocr_handwritten_image(image_bytes)
                 ocr_method = "gemini_vision"
