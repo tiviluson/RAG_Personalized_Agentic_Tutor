@@ -19,6 +19,7 @@ from src.ingestion.chunkers import (
     chunk_textbook,
 )
 from src.ingestion.embedders import embed_chunks
+from src.ingestion.enrichment import enrich_chunks
 from src.ingestion.loaders import (
     load_markdown,
     load_scanned_pdf,
@@ -92,11 +93,15 @@ def run_ingestion(
         raw = _load(file_path, doc_type)
 
         # -- Chunk --
-        set_job_status(job_id, status="chunking", progress=30)
+        set_job_status(job_id, status="chunking", progress=25)
         chunks = _chunk(raw, doc_type, source_filename)
 
+        # -- Enrich (LLM-based content_category + topic_tags) --
+        set_job_status(job_id, status="enriching", progress=40)
+        chunks = enrich_chunks(chunks)
+
         # -- Embed --
-        set_job_status(job_id, status="embedding", progress=50)
+        set_job_status(job_id, status="embedding", progress=55)
         chunks = embed_chunks(chunks)
 
         # -- Store --
