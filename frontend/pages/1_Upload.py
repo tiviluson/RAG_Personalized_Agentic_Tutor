@@ -40,13 +40,25 @@ with st.form("upload_form"):
         accept_multiple_files=True,
     )
 
-    doc_type = st.selectbox(
-        "Document type",
-        options=[dt.value for dt in DocType],
-        format_func=lambda v: v.replace("_", " ").title(),
-    )
+    per_file_type = st.checkbox("Set document type per file", value=False)
 
-    course_id = st.number_input("Course ID", min_value=1, step=1, value=1)
+    if per_file_type and files:
+        st.markdown("**Document type per file:**")
+        for f in files:
+            st.selectbox(
+                f"Type for {f.name}",
+                options=[dt.value for dt in DocType],
+                format_func=lambda v: v.replace("_", " ").title(),
+                key=f"dtype_{f.name}",
+            )
+    elif not per_file_type:
+        doc_type_single = st.selectbox(
+            "Document type",
+            options=[dt.value for dt in DocType],
+            format_func=lambda v: v.replace("_", " ").title(),
+        )
+
+    course_id = st.text_input("Course ID", value="")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -69,17 +81,26 @@ with st.form("upload_form"):
 # Handle submission
 # ---------------------------------------------------------------------------
 if submitted and files:
+    # Resolve per-file doc types
+    if per_file_type:
+        doc_type_selections = []
+        for f in files:
+            selected = st.session_state.get(f"dtype_{f.name}", DocType.TEXTBOOK.value)
+            doc_type_selections.append(selected)
+    else:
+        doc_type_selections = [doc_type_single]
+
     upload_files = [
         ("files", (f.name, f.getvalue(), f.type or "application/octet-stream"))
         for f in files
     ]
 
-    form_data = {
-        "doc_type": doc_type,
+    form_data: dict[str, str | list[str]] = {
         "role": role,
-        "course_id": str(course_id),
+        "course_id": course_id,
         "module_name": module_name,
         "module_week": str(module_week) if module_week else "",
+        "doc_type": doc_type_selections,
     }
     if student_id:
         form_data["student_id"] = student_id

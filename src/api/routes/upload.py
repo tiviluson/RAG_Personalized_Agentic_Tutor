@@ -81,7 +81,7 @@ def _validate_upload(file: UploadFile) -> None:
 async def upload_documents(
     background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
-    doc_type: DocType = Form(...),
+    doc_type: list[DocType] = Form(...),
     role: Literal["lecturer", "student"] = Form(...),
     course_id: str = Form(...),
     student_id: str | None = Form(None),
@@ -94,17 +94,17 @@ async def upload_documents(
     ingestion tasks. Returns immediately with job IDs.
 
     Args:
-        background_tasks: FastAPI background task manager.
-        files: One or more uploaded files (``.pdf`` or ``.md``).
-        doc_type: The document type for all uploaded files.
-        role: Uploader role (``lecturer`` or ``student``).
-        course_id: The course this upload belongs to.
-        student_id: Required if ``role`` is ``student``.
-        module_name: Optional module/topic label.
-        module_week: Optional week number.
+        background_tasks (BackgroundTasks): FastAPI background task manager.
+        files (list[UploadFile]): One or more uploaded files (``.pdf`` or ``.md``).
+        doc_type (list[DocType]): Document type per file. Pass a single value to apply to all files, or one value per file.
+        role (Literal["lecturer", "student"]): Uploader role.
+        course_id (str): The course this upload belongs to.
+        student_id (str | None): Required if ``role`` is ``student``.
+        module_name (str): Optional module/topic label.
+        module_week (int | None): Optional week number.
 
     Returns:
-        A ``BatchUploadResponse`` containing a job entry per file.
+        BatchUploadResponse: A response containing a job entry per file.
     """
     if role == "student" and not student_id:
         raise HTTPException(
@@ -112,10 +112,20 @@ async def upload_documents(
             detail="student_id is required when role is 'student'.",
         )
 
+    if len(doc_type) == 1:
+        doc_types = doc_type * len(files)
+    elif len(doc_type) == len(files):
+        doc_types = doc_type
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail=f"doc_type count ({len(doc_type)}) must be 1 or match file count ({len(files)}).",
+        )
+
     jobs = []
     client = get_qdrant_client()
 
-    for file in files:
+    for file, file_doc_type in zip(files, doc_types):
         _validate_upload(file)
         job_id = str(uuid.uuid4())
         file_path = _save_upload(file, job_id)
@@ -133,13 +143,13 @@ async def upload_documents(
             status="queued",
             progress=0,
             filename=file.filename,
-            doc_type=doc_type.value,
+            doc_type=file_doc_type.value,
         )
 
         background_tasks.add_task(
             run_ingestion,
             file_path=file_path,
-            doc_type=doc_type,
+            doc_type=file_doc_type,
             metadata=metadata,
             job_id=job_id,
             client=client,
