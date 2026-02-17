@@ -245,9 +245,10 @@ def get_collection_stats(client: QdrantClient) -> dict:
             info = client.get_collection(name)
             stats[name] = {
                 "points_count": info.points_count,
-                "vectors_count": info.vectors_count,
+                "indexed_vectors_count": info.indexed_vectors_count,
                 "status": info.status.value,
             }
-        except Exception:
+        except Exception as e:
+            logger.error("Failed to get stats for '{}': {}", name, e)
             stats[name] = {"points_count": 0, "vectors_count": 0, "status": "missing"}
     return stats

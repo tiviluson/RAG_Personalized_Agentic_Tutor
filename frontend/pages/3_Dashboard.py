@@ -39,13 +39,15 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("Course Content")
     cc = stats.get("course_content", {})
-    st.metric("Points", cc.get("points_count", "N/A"))
+    st.metric("Points", cc.get("points_count", 0))
+    st.metric("Indexed Vectors", cc.get("indexed_vectors_count", 0))
     st.text(f"Status: {cc.get('status', 'unknown')}")
 
 with col2:
     st.subheader("Student Notes")
     sn = stats.get("student_notes", {})
-    st.metric("Points", sn.get("points_count", "N/A"))
+    st.metric("Points", sn.get("points_count", 0))
+    st.metric("Indexed Vectors", sn.get("indexed_vectors_count", 0))
     st.text(f"Status: {sn.get('status', 'unknown')}")
 
 if st.button("Refresh"):
