@@ -2,7 +2,7 @@
 
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 @dataclass
@@ -37,6 +37,8 @@ class JobStatus:
     )
 
 
+JOB_TTL_HOURS = 24
+
 _store: dict[str, JobStatus] = {}
 _lock = threading.Lock()
 
@@ -63,11 +65,33 @@ def get_job_status(job_id: str) -> JobStatus | None:
     """Retrieve the status of a job.
 
     Args:
-        job_id: Unique identifier for the job.
+        job_id (str): Unique identifier for the job.
 
     Returns:
-        JobStatus | None: The job status record, or ``None`` if the
-            job ID is not found.
+        JobStatus | None: The job status record, or ``None`` if the job ID is not found.
     """
     with _lock:
         return _store.get(job_id)
+
+
+def cleanup_old_jobs(max_age_hours: int = JOB_TTL_HOURS) -> int:
+    """Remove completed or failed jobs older than ``max_age_hours``.
+
+    Args:
+        max_age_hours (int): Maximum age in hours for terminal jobs.
+
+    Returns:
+        int: Number of jobs removed.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    terminal = {"complete", "failed"}
+    with _lock:
+        to_remove = [
+            jid
+            for jid, job in _store.items()
+            if job.status in terminal
+            and datetime.fromisoformat(job.updated_at) < cutoff
+        ]
+        for jid in to_remove:
+            del _store[jid]
+    return len(to_remove)
