@@ -19,9 +19,9 @@ class Settings(BaseSettings):
     google_api_key: str = ""
 
     # Embedding
-    dense_embedding_model: str = "models/gemini-embedding-001"
-    dense_embedding_dim: int = 3072
-    embed_batch_size: int = 100
+    dense_embedding_model: str = "Qwen/Qwen3-Embedding-8B"
+    dense_embedding_dim: int = 1024
+    embed_batch_size: int = 32
 
     # Upload
     max_upload_size_mb: int = 50
