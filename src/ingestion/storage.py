@@ -104,7 +104,7 @@ def _build_payload(chunk: dict, doc_id: str, extra_meta: dict) -> dict:
     payload.update({
         "doc_id": doc_id,
         "chunk_id": str(uuid.uuid4()),
-        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+        "uploaded_at": datetime.now().astimezone().isoformat(),
         **extra_meta,
     })
     return payload
