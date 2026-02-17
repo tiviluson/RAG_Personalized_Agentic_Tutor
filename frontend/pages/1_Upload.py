@@ -40,23 +40,11 @@ with st.form("upload_form"):
         accept_multiple_files=True,
     )
 
-    per_file_type = st.checkbox("Set document type per file", value=False)
-
-    if per_file_type and files:
-        st.markdown("**Document type per file:**")
-        for f in files:
-            st.selectbox(
-                f"Type for {f.name}",
-                options=[dt.value for dt in DocType],
-                format_func=lambda v: v.replace("_", " ").title(),
-                key=f"dtype_{f.name}",
-            )
-    elif not per_file_type:
-        doc_type_single = st.selectbox(
-            "Document type",
-            options=[dt.value for dt in DocType],
-            format_func=lambda v: v.replace("_", " ").title(),
-        )
+    doc_type = st.selectbox(
+        "Document type (applies to all files)",
+        options=[dt.value for dt in DocType],
+        format_func=lambda v: v.replace("_", " ").title(),
+    )
 
     course_id = st.text_input("Course ID", value="")
 
@@ -81,15 +69,6 @@ with st.form("upload_form"):
 # Handle submission
 # ---------------------------------------------------------------------------
 if submitted and files:
-    # Resolve per-file doc types
-    if per_file_type:
-        doc_type_selections = []
-        for f in files:
-            selected = st.session_state.get(f"dtype_{f.name}", DocType.TEXTBOOK.value)
-            doc_type_selections.append(selected)
-    else:
-        doc_type_selections = [doc_type_single]
-
     upload_files = [
         ("files", (f.name, f.getvalue(), f.type or "application/octet-stream"))
         for f in files
@@ -100,7 +79,7 @@ if submitted and files:
         "course_id": course_id,
         "module_name": module_name,
         "module_week": str(module_week) if module_week else "",
-        "doc_type": doc_type_selections,
+        "doc_type": doc_type,
     }
     if student_id:
         form_data["student_id"] = student_id
