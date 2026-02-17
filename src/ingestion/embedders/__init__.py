@@ -9,9 +9,9 @@ from src.ingestion.embedders.sparse import embed_texts_sparse
 def embed_chunks(chunks: list[dict]) -> list[dict]:
     """Add dense and sparse vectors to each chunk dict.
 
-    Generates ``gemini-embedding-001`` dense vectors and BM25 sparse
-    vectors for all chunks, then attaches them as ``dense_vector`` and
-    ``sparse_vector`` keys. Modifies chunks in-place.
+    Generates dense vectors and BM25 sparse vectors for all chunks,
+    then attaches them as ``dense_vector`` and ``sparse_vector`` keys.
+    Modifies chunks in-place.
 
     Args:
         chunks: A list of chunk dicts, each containing a ``text`` key.

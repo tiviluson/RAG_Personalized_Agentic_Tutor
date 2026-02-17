@@ -11,6 +11,7 @@ from pathlib import Path
 from loguru import logger
 from qdrant_client import QdrantClient
 
+from src.config import settings
 from src.db.job_store import set_job_status
 from src.ingestion.chunkers import (
     chunk_markdown,
@@ -28,6 +29,65 @@ from src.ingestion.loaders import (
 )
 from src.ingestion.storage import find_doc_by_hash, file_hash, upsert_chunks
 from src.ingestion.types import DocType
+
+
+def _embed_and_store_batched(
+    chunks: list[dict],
+    client: QdrantClient,
+    collection: str,
+    doc_id: str,
+    extra_meta: dict,
+    job_id: str,
+) -> int:
+    """Embed and store chunks in batches to limit peak memory usage.
+
+    Processes chunks through embedding and Qdrant storage in fixed-size
+    batches, updating job progress after each batch. If a batch fails,
+    all previously stored batches remain in Qdrant and the job status
+    reflects the last successful count.
+
+    Args:
+        chunks (list[dict]): Chunk dicts with text + metadata (no embeddings yet).
+        client (QdrantClient): An initialised Qdrant client.
+        collection (str): Target Qdrant collection name.
+        doc_id (str): Document-level unique identifier.
+        extra_meta (dict): Additional payload fields for every point.
+        job_id (str): Job ID for progress tracking.
+
+    Returns:
+        int: Total number of chunks stored.
+    """
+    batch_size = settings.upsert_batch_size
+    total = len(chunks)
+    stored = 0
+    num_batches = (total + batch_size - 1) // batch_size
+
+    for i in range(0, total, batch_size):
+        batch = chunks[i : i + batch_size]
+        batch = embed_chunks(batch)
+        n = upsert_chunks(
+            client, collection, batch, doc_id=doc_id, extra_meta=extra_meta
+        )
+        stored += n
+
+        # Progress interpolated between 55% (start) and 95% (all stored)
+        progress = 55 + int((stored / total) * 40)
+        set_job_status(
+            job_id,
+            status="embedding_storing",
+            progress=progress,
+            chunks_indexed=stored,
+        )
+        logger.info(
+            "[ingest] Batch {}/{}: embedded and stored {} chunks ({}/{})",
+            i // batch_size + 1,
+            num_batches,
+            n,
+            stored,
+            total,
+        )
+
+    return stored
 
 
 def run_ingestion(
@@ -100,16 +160,13 @@ def run_ingestion(
         set_job_status(job_id, status="enriching", progress=40)
         chunks = enrich_chunks(chunks)
 
-        # -- Embed --
-        set_job_status(job_id, status="embedding", progress=55)
-        chunks = embed_chunks(chunks)
-
-        # -- Store --
-        set_job_status(job_id, status="storing", progress=80)
-        collection = _get_collection(metadata)
+        # -- Embed & Store (batched to limit peak memory) --
+        set_job_status(job_id, status="embedding_storing", progress=55)
         extra_meta = _build_extra_meta(metadata)
         extra_meta["file_hash"] = content_hash
-        n = upsert_chunks(client, collection, chunks, doc_id=doc_id, extra_meta=extra_meta)
+        n = _embed_and_store_batched(
+            chunks, client, collection, doc_id, extra_meta, job_id
+        )
 
         # -- Cleanup intermediate data to free memory --
         del raw, chunks
