@@ -57,35 +57,39 @@ def _embed_and_store_batched(
     Returns:
         int: Total number of chunks stored.
     """
-    batch_size = settings.upsert_batch_size
+    embed_batch_size = 8  # Small for frequent progress updates
+    store_batch_size = settings.upsert_batch_size  # 64 for efficient Qdrant upserts
     total = len(chunks)
     stored = 0
-    num_batches = (total + batch_size - 1) // batch_size
+    pending: list[dict] = []
 
-    for i in range(0, total, batch_size):
-        batch = chunks[i : i + batch_size]
-        batch = embed_chunks(batch)
-        n = upsert_chunks(
-            client, collection, batch, doc_id=doc_id, extra_meta=extra_meta
-        )
-        stored += n
+    for i in range(0, total, embed_batch_size):
+        sub = chunks[i : i + embed_batch_size]
 
-        # Progress interpolated between 55% (start) and 95% (all stored)
-        progress = 55 + int((stored / total) * 40)
-        set_job_status(
-            job_id,
-            status="embedding_storing",
-            progress=progress,
-            chunks_indexed=stored,
-        )
-        logger.info(
-            "[ingest] Batch {}/{}: embedded and stored {} chunks ({}/{})",
-            i // batch_size + 1,
-            num_batches,
-            n,
-            stored,
-            total,
-        )
+        # Update progress before embedding (55-80% range)
+        progress = 55 + int((i / total) * 25)
+        set_job_status(job_id, status="embedding", progress=progress)
+
+        sub = embed_chunks(sub)
+        pending.extend(sub)
+
+        # Store when pending reaches store batch size or last sub-batch
+        is_last = (i + embed_batch_size) >= total
+        if len(pending) >= store_batch_size or is_last:
+            progress = 80 + int((stored / max(total, 1)) * 15)
+            set_job_status(job_id, status="storing", progress=progress)
+
+            n = upsert_chunks(
+                client, collection, pending, doc_id=doc_id, extra_meta=extra_meta
+            )
+            stored += n
+            pending = []
+
+            logger.info("[ingest] Stored {} chunks ({}/{})", n, stored, total)
+
+    set_job_status(
+        job_id, status="embedding_storing", progress=95, chunks_indexed=stored
+    )
 
     return stored
 
