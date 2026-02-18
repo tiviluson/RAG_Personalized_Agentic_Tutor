@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 import streamlit as st
+from loguru import logger
 
 # Add project root to path so Streamlit pages can import src.*
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -84,6 +85,9 @@ if submitted and files:
     if student_id:
         form_data["student_id"] = student_id
 
+    filenames = [f.name for f in files]
+    logger.info("Uploading {} file(s): {}", len(files), filenames)
+
     try:
         with httpx.Client(timeout=30) as client:
             resp = client.post(
@@ -94,9 +98,11 @@ if submitted and files:
             resp.raise_for_status()
             result = resp.json()
     except httpx.HTTPStatusError as e:
+        logger.error("Upload failed: {}", e.response.text)
         st.error(f"Upload failed: {e.response.text}")
         st.stop()
     except httpx.ConnectError:
+        logger.error("Cannot connect to API server")
         st.error("Cannot connect to API server. Is it running?")
         st.stop()
 
@@ -105,6 +111,7 @@ if submitted and files:
         st.warning("No jobs returned.")
         st.stop()
 
+    logger.info("Queued {} job(s): {}", len(jobs), [j["job_id"] for j in jobs])
     st.success(f"Queued {len(jobs)} file(s) for processing.")
 
     # -------------------------------------------------------------------
@@ -147,9 +154,11 @@ if submitted and files:
                     ctx["done"] = True
                     if status == "failed":
                         error = data.get("error", "Unknown error")
+                        logger.error("Job {} ({}) failed: {}", job_id, ctx["filename"], error)
                         ctx["status_text"].text(f"Failed: {error}")
                     else:
                         chunks = data.get("chunks_indexed", 0)
+                        logger.info("Job {} ({}) complete: {} chunks indexed", job_id, ctx["filename"], chunks)
                         ctx["status_text"].text(
                             f"Complete -- {chunks} chunks indexed"
                         )
