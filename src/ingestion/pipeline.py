@@ -121,7 +121,8 @@ def run_ingestion(
         and ``collection``.
     """
     doc_id = str(uuid.uuid4())
-    source_filename = file_path.name
+    # Strip the "{job_id}_" prefix added by _save_upload
+    source_filename = file_path.name.split("_", 1)[1]
     logger.info(
         "[ingest] {} | type={} | doc_id={}", source_filename, doc_type, doc_id
     )
@@ -159,6 +160,9 @@ def run_ingestion(
         # -- Chunk --
         set_job_status(job_id, status="chunking", progress=25)
         chunks = _chunk(raw, doc_type, source_filename)
+        for chunk in chunks:
+            if "source_filename" in chunk:
+                chunk["source_filename"] = source_filename
 
         # -- Enrich (LLM-based content_category + topic_tags) --
         set_job_status(job_id, status="enriching", progress=40)
