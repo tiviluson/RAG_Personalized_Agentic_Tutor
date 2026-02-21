@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Qdrant batching
     upsert_batch_size: int = 64
 
+    # Session
+    session_ttl_hours: int = 24
+    history_max_turns: int = 5
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
