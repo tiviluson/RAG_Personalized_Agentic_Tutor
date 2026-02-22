@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # Qdrant batching
     upsert_batch_size: int = 64
 
+    # Retrieval
+    retrieval_k_per_collection: int = 20
+
     # Session
     session_ttl_hours: int = 24
     history_max_turns: int = 5
