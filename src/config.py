@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     # Retrieval
     retrieval_k_per_collection: int = 20
+    context_max_tokens: int = 8192
 
     # Session
     session_ttl_hours: int = 24
