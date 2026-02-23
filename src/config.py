@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     retrieval_k_per_collection: int = 20
     context_max_tokens: int = 8192
 
+    # Reranker
+    reranker_model: str = "jinaai/jina-reranker-v3"
+    reranker_max_results: int = 10
+    reranker_min_results: int = 5
+    reranker_min_score: float = 0.1
+
     # Session
     session_ttl_hours: int = 24
     history_max_turns: int = 5
