@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     reranker_min_results: int = 5
     reranker_min_score: float = 0.1
 
+    # Generation
+    gemini_generation_model: str = "gemini-2.5-flash"
+
     # Session
     session_ttl_hours: int = 24
     history_max_turns: int = 5
