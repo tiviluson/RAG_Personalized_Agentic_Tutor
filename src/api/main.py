@@ -8,21 +8,25 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from src.api.routes import health, upload
+from src.api.routes import health, query, upload
 from src.db.job_store import cleanup_old_jobs
 from src.db.qdrant import get_qdrant_client
 from src.ingestion.storage import create_collections
+from src.retrieval.session import cleanup_expired_sessions
 
 JOB_CLEANUP_INTERVAL_SECONDS = 3600
 
 
-async def _periodic_job_cleanup() -> None:
-    """Run job store cleanup every ``JOB_CLEANUP_INTERVAL_SECONDS``."""
+async def _periodic_cleanup() -> None:
+    """Run job store and session cleanup every ``JOB_CLEANUP_INTERVAL_SECONDS``."""
     while True:
         await asyncio.sleep(JOB_CLEANUP_INTERVAL_SECONDS)
-        removed = cleanup_old_jobs()
-        if removed:
-            logger.info("Job cleanup: removed {} old jobs", removed)
+        removed_jobs = cleanup_old_jobs()
+        if removed_jobs:
+            logger.info("Job cleanup: removed {} old jobs", removed_jobs)
+        removed_sessions = cleanup_expired_sessions()
+        if removed_sessions:
+            logger.info("Session cleanup: removed {} expired sessions", removed_sessions)
 
 
 @asynccontextmanager
@@ -35,7 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as e:
         logger.warning("Qdrant not available on startup: {}", e)
 
-    cleanup_task = asyncio.create_task(_periodic_job_cleanup())
+    cleanup_task = asyncio.create_task(_periodic_cleanup())
     yield
     cleanup_task.cancel()
 
@@ -59,6 +63,7 @@ def create_app() -> FastAPI:
 
     app.include_router(upload.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
+    app.include_router(query.router, prefix="/api")
 
     return app
 
