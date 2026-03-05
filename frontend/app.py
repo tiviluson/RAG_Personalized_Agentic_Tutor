@@ -43,4 +43,4 @@ st.sidebar.button("Sign out", on_click=st.logout)
 # Main page
 # ---------------------------------------------------------------------------
 st.title("RAG Personalized Agentic Tutor")
-st.write("Use the sidebar to navigate to **Upload** or **Dashboard**.")
+st.write("Use the sidebar to navigate to **Upload**, **Chat**, or **Dashboard**.")
