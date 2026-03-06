@@ -11,6 +11,7 @@ from loguru import logger
 from src.api.routes import health, query, upload
 from src.db.job_store import cleanup_old_jobs
 from src.db.qdrant import get_qdrant_client
+from src.ingestion.embedders.dense import _get_model as _get_dense_model
 from src.ingestion.storage import create_collections
 from src.retrieval.session import cleanup_expired_sessions
 
@@ -31,7 +32,7 @@ async def _periodic_cleanup() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Ensure Qdrant collections exist on startup and start background cleanup."""
+    """Ensure Qdrant collections exist on startup, warm up models, and start background cleanup."""
     try:
         client = get_qdrant_client()
         create_collections(client, recreate=False)
@@ -39,8 +40,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as e:
         logger.warning("Qdrant not available on startup: {}", e)
 
+    async def _load_dense_model() -> None:
+        try:
+            await asyncio.to_thread(_get_dense_model)
+        except Exception as e:
+            logger.warning("Dense embedding model failed to load on startup: {}", e)
+
+    model_task = asyncio.create_task(_load_dense_model())
     cleanup_task = asyncio.create_task(_periodic_cleanup())
     yield
+    model_task.cancel()
     cleanup_task.cancel()
 
 
