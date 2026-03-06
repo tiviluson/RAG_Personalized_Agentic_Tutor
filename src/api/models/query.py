@@ -59,7 +59,7 @@ class Citation(BaseModel):
     collection: str = ""
     content_category: str | None = None
     relevance_score: float = 0.0
-    text_preview: str = Field(default="", max_length=200)
+    text_preview: str = Field(default="")
 
 
 class PipelineMetrics(BaseModel):

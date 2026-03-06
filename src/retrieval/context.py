@@ -186,7 +186,7 @@ def assemble_context(
                 collection=chunk.collection,
                 content_category=meta.get("content_category"),
                 relevance_score=chunk.score,
-                text_preview=chunk.text[:200],
+                text_preview=chunk.text,
             )
         )
 
