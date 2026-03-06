@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncGenerator
+
 from google.genai import types
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from src.clients import get_genai_client
 from src.config import settings
@@ -42,37 +44,44 @@ def _build_user_message(
     return "\n".join(parts)
 
 
-@retry(
-    stop=stop_after_attempt(2),
-    wait=wait_fixed(2),
-    retry=retry_if_exception_type(Exception),
-)
-def _call_gemini_stream(
-    system_prompt: str, user_message: str
-) -> list[str]:
-    """Call Gemini Flash and collect streamed text chunks.
+async def stream_gemini(
+    system_prompt: str,
+    user_message: str,
+) -> AsyncGenerator[str, None]:
+    """Yield text fragments from Gemini Flash as they stream in.
+
+    Retries once after a 2-second wait on failure. A mid-stream failure
+    propagates immediately without retry to avoid duplicate tokens.
 
     Args:
         system_prompt: The system instruction for the answer mode.
         user_message: The formatted user message with context.
 
-    Returns:
-        List of text fragments from the stream.
+    Yields:
+        Text fragments in arrival order.
 
     Raises:
         Exception: Propagated after 2 retry attempts.
     """
     client = get_genai_client(required=True)
-    stream = client.models.generate_content_stream(  # type: ignore[union-attr]
-        model=settings.gemini_generation_model,
-        contents=[user_message],
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            temperature=0.3,
-        ),
-    )
-    fragments = []
-    for chunk in stream:
-        if chunk.text:
-            fragments.append(chunk.text)
-    return fragments
+    last_exc: Exception | None = None
+
+    for attempt in range(2):
+        try:
+            async for chunk in await client.aio.models.generate_content_stream(  # type: ignore[union-attr]
+                model=settings.gemini_generation_model,
+                contents=[user_message],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.3,
+                ),
+            ):
+                if chunk.text:
+                    yield chunk.text
+            return  # stream completed successfully
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 0:
+                await asyncio.sleep(2)
+
+    raise last_exc  # type: ignore[misc]
