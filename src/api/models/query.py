@@ -70,6 +70,7 @@ class PipelineMetrics(BaseModel):
     reranking_ms: float = 0.0
     context_assembly_ms: float = 0.0
     total_candidates: int = 0
+    deduped_candidates: int = 0
     final_candidates: int = 0
     strategy_used: str = "simple"
 
@@ -78,6 +79,7 @@ class ChatEvent(BaseModel):
     """A single SSE event in the streaming response.
 
     Types:
+        status: Pipeline stage update ("Thinking...", "Searching...", "Reranking...").
         chunk: A text fragment of the response.
         done: Final event with citations and metrics.
         error: An error occurred.

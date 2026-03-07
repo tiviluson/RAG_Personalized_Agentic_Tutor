@@ -14,7 +14,7 @@ from src.api.models.query import ChatEvent, PipelineMetrics
 from src.config import settings
 from src.db.qdrant import get_qdrant_client
 from src.retrieval.context import ContextBlock, assemble_context, dedup_chunks
-from src.retrieval.generator import _build_user_message, _call_gemini_stream
+from src.retrieval.generator import _build_user_message, stream_gemini
 from src.retrieval.prompts import ANSWER_MODE_PROMPTS
 from src.retrieval.query_processor import PreprocessedQuery, preprocess_query
 from src.retrieval.reranker import rerank
@@ -48,39 +48,40 @@ class PipelineResult:
     metrics: PipelineMetrics = field(default_factory=PipelineMetrics)
 
 
-def _run_retrieval_sync(
+def _run_preprocessing(
     query: str,
     history: list[dict],
-    student_id: str,
-    filters: dict | None,
-) -> tuple[PreprocessedQuery, list[RetrievedChunk], list[RetrievedChunk], list[RetrievedChunk], ContextBlock, PipelineMetrics]:
-    """Run all blocking retrieval stages synchronously.
-
-    This runs in a thread to avoid blocking the async event loop.
+) -> tuple[PreprocessedQuery, float]:
+    """Preprocess the query synchronously (runs in a thread).
 
     Args:
         query: Raw student query.
         history: Recent conversation history.
+
+    Returns:
+        Tuple of (preprocessed_query, elapsed_ms).
+    """
+    t0 = time.perf_counter()
+    preprocessed = preprocess_query(query, history)
+    return preprocessed, (time.perf_counter() - t0) * 1000
+
+
+def _run_search_and_dedup(
+    preprocessed: PreprocessedQuery,
+    student_id: str,
+    filters: dict | None,
+) -> tuple[list[RetrievedChunk], list[RetrievedChunk], float]:
+    """Run hybrid search and dedup synchronously (runs in a thread).
+
+    Args:
+        preprocessed: Output from query preprocessing.
         student_id: Student ID for scoping student_notes.
         filters: Optional metadata filters.
 
     Returns:
-        Tuple of (preprocessed, raw_candidates, deduped, reranked,
-        context_block, metrics).
+        Tuple of (raw_candidates, deduped_candidates, retrieval_ms).
     """
-    metrics = PipelineMetrics()
-
-    # Preprocess
     t0 = time.perf_counter()
-    preprocessed = preprocess_query(query, history)
-    metrics.preprocessing_ms = (time.perf_counter() - t0) * 1000
-    metrics.strategy_used = preprocessed.strategy
-
-    if preprocessed.is_out_of_scope:
-        return preprocessed, [], [], [], ContextBlock(text=""), metrics
-
-    # Hybrid search
-    t1 = time.perf_counter()
     qdrant_client = get_qdrant_client()
     search_queries = [preprocessed.rewritten_query] + preprocessed.expansion_queries
     all_candidates: list[RetrievedChunk] = []
@@ -95,23 +96,33 @@ def _run_retrieval_sync(
         )
         all_candidates.extend(candidates)
 
-    metrics.total_candidates = len(all_candidates)
-    metrics.retrieval_ms = (time.perf_counter() - t1) * 1000
-
     logger.info(
         "Retrieved {} raw candidates from {} search queries",
         len(all_candidates),
         len(search_queries),
     )
 
-    # Dedup
     deduped = dedup_chunks(all_candidates)
+    return all_candidates, deduped, (time.perf_counter() - t0) * 1000
 
-    # Rerank
-    t2 = time.perf_counter()
+
+def _run_rerank_and_assemble(
+    rewritten_query: str,
+    deduped: list[RetrievedChunk],
+) -> tuple[list[RetrievedChunk], ContextBlock, float, float]:
+    """Rerank candidates and assemble context synchronously (runs in a thread).
+
+    Args:
+        rewritten_query: Preprocessed rewritten query for reranker scoring.
+        deduped: Deduplicated candidate chunks.
+
+    Returns:
+        Tuple of (reranked, context_block, reranking_ms, context_assembly_ms).
+    """
+    t_r = time.perf_counter()
     if deduped:
         reranked = rerank(
-            preprocessed.rewritten_query,
+            rewritten_query,
             deduped,
             max_results=settings.reranker_max_results,
             min_results=settings.reranker_min_results,
@@ -119,15 +130,13 @@ def _run_retrieval_sync(
         )
     else:
         reranked = []
-    metrics.reranking_ms = (time.perf_counter() - t2) * 1000
-    metrics.final_candidates = len(reranked)
+    reranking_ms = (time.perf_counter() - t_r) * 1000
 
-    # Context assembly
-    t3 = time.perf_counter()
+    t_c = time.perf_counter()
     context_block = assemble_context(reranked)
-    metrics.context_assembly_ms = (time.perf_counter() - t3) * 1000
+    context_assembly_ms = (time.perf_counter() - t_c) * 1000
 
-    return preprocessed, all_candidates, deduped, reranked, context_block, metrics
+    return reranked, context_block, reranking_ms, context_assembly_ms
 
 
 async def run_pipeline(
@@ -157,18 +166,17 @@ async def run_pipeline(
         return
 
     history = get_recent_history(session_id)
+    metrics = PipelineMetrics()
 
-    # Early status event so the SSE client receives data immediately
+    # Stage 1: Preprocess query
     yield ChatEvent(type="status", data="Thinking...")
-
-    # 2-7. Run all blocking retrieval stages in a thread
-    (
-        preprocessed, _raw, _deduped, _reranked, context_block, metrics
-    ) = await asyncio.to_thread(
-        _run_retrieval_sync, query, history, session.student_id, filters
+    preprocessed, preprocessing_ms = await asyncio.to_thread(
+        _run_preprocessing, query, history
     )
+    metrics.preprocessing_ms = preprocessing_ms
+    metrics.strategy_used = preprocessed.strategy
 
-    # 3. Out-of-scope short-circuit
+    # Out-of-scope short-circuit
     if preprocessed.is_out_of_scope:
         refusal = preprocessed.refusal_message or (
             "I can only help with questions related to this course."
@@ -182,17 +190,34 @@ async def run_pipeline(
         )
         return
 
-    # 8. Generate streamed response (also blocking -- run in thread)
+    # Stage 2: Hybrid search + dedup
+    yield ChatEvent(type="status", data="Searching...")
+    all_candidates, deduped, retrieval_ms = await asyncio.to_thread(
+        _run_search_and_dedup, preprocessed, session.student_id, filters
+    )
+    metrics.total_candidates = len(all_candidates)
+    metrics.deduped_candidates = len(deduped)
+    metrics.retrieval_ms = retrieval_ms
+
+    # Stage 3: Rerank + context assembly
+    yield ChatEvent(type="status", data="Reranking...")
+    reranked, context_block, reranking_ms, context_assembly_ms = await asyncio.to_thread(
+        _run_rerank_and_assemble, preprocessed.rewritten_query, deduped
+    )
+    metrics.reranking_ms = reranking_ms
+    metrics.context_assembly_ms = context_assembly_ms
+    metrics.final_candidates = len(reranked)
+
+    # Stage 4: Generate streamed response
     system_prompt = ANSWER_MODE_PROMPTS.get(answer_mode, ANSWER_MODE_PROMPTS["long"])
     user_message = _build_user_message(
         preprocessed.rewritten_query, context_block, history
     )
 
+    fragments: list[str] = []
     try:
-        fragments = await asyncio.to_thread(
-            _call_gemini_stream, system_prompt, user_message
-        )
-        for text in fragments:
+        async for text in stream_gemini(system_prompt, user_message):
+            fragments.append(text)
             yield ChatEvent(type="chunk", data=text)
     except Exception as e:
         logger.error("Generation failed after retries: {}", e)

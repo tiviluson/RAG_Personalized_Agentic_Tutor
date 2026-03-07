@@ -70,6 +70,8 @@ if "chat_messages" not in st.session_state:
     st.session_state["chat_messages"] = []
 if "chat_citations" not in st.session_state:
     st.session_state["chat_citations"] = {}
+if "chat_metrics" not in st.session_state:
+    st.session_state["chat_metrics"] = {}
 
 
 def _create_session() -> str | None:
@@ -100,6 +102,30 @@ if st.session_state["chat_session_id"] is None:
     st.error("Could not establish a chat session. Is the API running?")
     st.stop()
 
+def _render_metrics(metrics: dict) -> None:
+    """Render pipeline metrics as 2 rows x 4 columns of stat tiles."""
+    preprocess = metrics.get("preprocessing_ms", 0)
+    retrieval = metrics.get("retrieval_ms", 0)
+    reranking = metrics.get("reranking_ms", 0)
+    assembly = metrics.get("context_assembly_ms", 0)
+    total = metrics.get("total_candidates", 0)
+    deduped = metrics.get("deduped_candidates", 0)
+    final = metrics.get("final_candidates", 0)
+    strategy = metrics.get("strategy_used", "simple")
+
+    row1 = st.columns(4)
+    row1[0].metric("Strategy", strategy)
+    row1[1].metric("Retrieved", f"{total} chunks")
+    row1[2].metric("After Dedup", f"{deduped} chunks")
+    row1[3].metric("After Rerank", f"{final} chunks")
+
+    row2 = st.columns(4)
+    row2[0].metric("Preprocessing", f"{preprocess:.0f} ms")
+    row2[1].metric("Retrieval", f"{retrieval:.0f} ms")
+    row2[2].metric("Reranking", f"{reranking:.0f} ms")
+    row2[3].metric("Context Assembly", f"{assembly:.0f} ms")
+
+
 # ---------------------------------------------------------------------------
 # Display conversation history
 # ---------------------------------------------------------------------------
@@ -109,7 +135,7 @@ for i, msg in enumerate(st.session_state["chat_messages"]):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-        # Show citations for assistant messages
+        # Show citations and metrics for assistant messages
         msg_citations = st.session_state["chat_citations"].get(i)
         if msg_citations:
             with st.expander(f"Sources ({len(msg_citations)} references)", expanded=False):
@@ -126,6 +152,10 @@ for i, msg in enumerate(st.session_state["chat_messages"]):
                         f"**{label}** (score: {score:.3f})  \n"
                         f"_{cite.get('text_preview', '')}_"
                     )
+        msg_metrics = st.session_state["chat_metrics"].get(i)
+        if msg_metrics:
+            with st.expander("Pipeline Stats", expanded=False):
+                _render_metrics(msg_metrics)
 
 # ---------------------------------------------------------------------------
 # Chat input
@@ -141,6 +171,7 @@ if prompt := st.chat_input("Ask a question about the course..."):
         response_placeholder = st.empty()
         full_response = ""
         citations = []
+        metrics = {}
 
         try:
             body = {
@@ -220,8 +251,6 @@ if prompt := st.chat_input("Ask a question about the course..."):
     st.session_state["chat_messages"].append({"role": "assistant", "content": full_response})
     if citations:
         st.session_state["chat_citations"][msg_index] = citations
-
-        # Show citations inline
         with st.expander(f"Sources ({len(citations)} references)", expanded=False):
             for cite in citations:
                 label = f"[{cite['index']}] {cite.get('source_filename', 'Unknown')}"
@@ -236,3 +265,7 @@ if prompt := st.chat_input("Ask a question about the course..."):
                     f"**{label}** (score: {score:.3f})  \n"
                     f"_{cite.get('text_preview', '')}_"
                 )
+    if metrics:
+        st.session_state["chat_metrics"][msg_index] = metrics
+        with st.expander("Pipeline Stats", expanded=False):
+            _render_metrics(metrics)
