@@ -37,6 +37,7 @@ _PAYLOAD_INDEXES: dict[str, PayloadSchemaType] = {
     "content_category": PayloadSchemaType.KEYWORD,
     "topic_tags": PayloadSchemaType.KEYWORD,
     "extraction_method": PayloadSchemaType.KEYWORD,
+    "source_filename": PayloadSchemaType.KEYWORD,
 }
 
 
