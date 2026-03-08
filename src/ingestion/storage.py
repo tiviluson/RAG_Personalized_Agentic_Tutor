@@ -195,7 +195,10 @@ def delete_chunks_by_doc_id(
 
 
 def find_doc_by_hash(
-    client: QdrantClient, collection_name: str, content_hash: str
+    client: QdrantClient,
+    collection_name: str,
+    content_hash: str,
+    uploaded_by: str | None = None,
 ) -> str | None:
     """Check if a document with the given file hash already exists.
 
@@ -203,16 +206,24 @@ def find_doc_by_hash(
         client (QdrantClient): An initialised Qdrant client.
         collection_name (str): Collection to search in.
         content_hash (str): SHA-256 hex digest of the file.
+        uploaded_by (str | None): Uploader identifier. When provided, the
+            duplicate check is scoped to this uploader so that different
+            users uploading the same file each get their own copy.
 
     Returns:
         str | None: The ``doc_id`` of the existing document, or ``None`` if not found.
     """
     try:
+        conditions: list[FieldCondition] = [
+            FieldCondition(key="file_hash", match=MatchValue(value=content_hash))
+        ]
+        if uploaded_by:
+            conditions.append(
+                FieldCondition(key="uploaded_by", match=MatchValue(value=uploaded_by))
+            )
         results, _ = client.scroll(
             collection_name=collection_name,
-            scroll_filter=Filter(
-                must=[FieldCondition(key="file_hash", match=MatchValue(value=content_hash))]
-            ),
+            scroll_filter=Filter(must=conditions),  # type: ignore[arg-type]
             limit=1,
             with_payload=["doc_id"],
             with_vectors=False,

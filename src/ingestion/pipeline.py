@@ -133,7 +133,9 @@ def run_ingestion(
         # -- Dedup check --
         content_hash = file_hash(file_path)
         collection = _get_collection(metadata)
-        existing_doc_id = find_doc_by_hash(client, collection, content_hash)
+        existing_doc_id = find_doc_by_hash(
+            client, collection, content_hash, uploaded_by=metadata.get("uploaded_by")
+        )
         if existing_doc_id:
             logger.info(
                 "[ingest] Skipping duplicate file (hash={}, existing doc_id={})",
