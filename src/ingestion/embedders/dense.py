@@ -1,5 +1,6 @@
 """Dense embedding via Qwen3-Embedding-8B (local, sentence-transformers)."""
 
+import torch
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
@@ -47,5 +48,9 @@ def embed_texts_dense(texts: list[str]) -> list[list[float]]:
         show_progress_bar=True,
         normalize_embeddings=True,
     )
+
+    # Free MPS GPU memory after each encode call to prevent OOM across batches
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
 
     return embeddings.tolist()

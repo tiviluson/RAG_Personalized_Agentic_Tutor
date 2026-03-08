@@ -72,6 +72,8 @@ def _embed_and_store_batched(
 
         sub = embed_chunks(sub)
         pending.extend(sub)
+        del sub
+        gc.collect()
 
         # Store when pending reaches store batch size or last sub-batch
         is_last = (i + embed_batch_size) >= total
