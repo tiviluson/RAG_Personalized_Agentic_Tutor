@@ -163,8 +163,7 @@ def run_ingestion(
         set_job_status(job_id, status="chunking", progress=25)
         chunks = _chunk(raw, doc_type, source_filename)
         for chunk in chunks:
-            if "source_filename" in chunk:
-                chunk["source_filename"] = source_filename
+            chunk["source_filename"] = source_filename
 
         # -- Enrich (LLM-based content_category + topic_tags) --
         set_job_status(job_id, status="enriching", progress=40)

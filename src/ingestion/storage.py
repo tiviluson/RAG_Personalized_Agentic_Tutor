@@ -108,6 +108,12 @@ def _build_payload(chunk: dict, doc_id: str, extra_meta: dict) -> dict:
         "uploaded_at": datetime.now().astimezone().isoformat(),
         **extra_meta,
     })
+
+    if not payload.get("source_filename"):
+        raise ValueError(
+            f"Chunk is missing required 'source_filename' field (doc_id={doc_id})"
+        )
+
     return payload
 
 
