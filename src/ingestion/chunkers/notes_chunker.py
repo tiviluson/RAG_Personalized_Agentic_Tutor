@@ -36,6 +36,9 @@ def chunk_scanned_pages(pages_data: list[PageData]) -> list[dict]:
     chunk_idx = 0
 
     for page in pages_data:
+        if not page["text"]:
+            logger.debug("Skipping page {} (no text)", page["page_num"])
+            continue
         page_splits = splitter.split_text(page["text"])
         for split_text in page_splits:
             all_chunks.append({
