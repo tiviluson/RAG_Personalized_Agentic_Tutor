@@ -29,6 +29,15 @@ def _get_reranker():
     return _reranker
 
 
+def unload_model() -> None:
+    """Release the reranker model and free memory."""
+    global _reranker
+    if _reranker is not None:
+        logger.info("Unloading reranker model")
+        del _reranker
+        _reranker = None
+
+
 def rerank(
     query: str,
     chunks: list[RetrievedChunk],

@@ -54,3 +54,14 @@ def embed_texts_dense(texts: list[str]) -> list[list[float]]:
         torch.mps.empty_cache()
 
     return embeddings.tolist()
+
+
+def unload_model() -> None:
+    """Release the dense embedding model and free GPU memory."""
+    global _model
+    if _model is not None:
+        logger.info("Unloading dense embedding model")
+        del _model
+        _model = None
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
