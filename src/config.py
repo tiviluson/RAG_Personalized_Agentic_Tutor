@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     session_ttl_hours: int = 24
     history_max_turns: int = 5
 
+    # Evaluation
+    eval_llm_model: str = "qwen/qwen3-8b"
+    eval_llm_base_url: str = "http://127.0.0.1:1234/v1"
+    eval_embedding_model: str = "nomic-ai/nomic-embed-text-v1.5"
+    eval_smoke_test_samples: int = 3
+    eval_max_workers: int = 8
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
