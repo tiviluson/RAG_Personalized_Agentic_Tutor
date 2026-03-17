@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import statistics
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -94,6 +95,24 @@ def build_report(
         EvalReport: Complete report ready for saving.
     """
     # Metadata
+    # Aggregate scores, skip NaN samples
+    aggregate_scores: dict[str, float] = {}
+    score_counts: dict[str, dict[str, int]] = {}
+    all_metric_keys = list(metrics_used) + ["output_accuracy"]
+    for metric_name in all_metric_keys:
+        values = [
+            s.get(metric_name)
+            for s in per_sample_scores
+            if s.get(metric_name) is not None
+        ]
+        valid = [v for v in values if not (isinstance(v, float) and math.isnan(v))]
+        if valid:
+            aggregate_scores[metric_name] = statistics.mean(valid)
+        score_counts[metric_name] = {
+            "valid": len(valid),
+            "total": len(per_sample_scores),
+        }
+
     metadata = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "git_commit": _get_git_commit(),
@@ -101,27 +120,8 @@ def build_report(
         "evaluator_model": settings.eval_llm_model,
         "metrics_used": metrics_used,
         "total_samples": len(per_sample_scores),
+        "score_counts": score_counts,
     }
-
-    # Aggregate scores (mean per metric)
-    aggregate_scores: dict[str, float] = {}
-    for metric_name in metrics_used:
-        values = [
-            s.get(metric_name, 0.0)
-            for s in per_sample_scores
-            if s.get(metric_name) is not None
-        ]
-        if values:
-            aggregate_scores[metric_name] = statistics.mean(values)
-
-    # Include output_accuracy if present
-    accuracy_values = [
-        s.get("output_accuracy", 0.0)
-        for s in per_sample_scores
-        if s.get("output_accuracy") is not None
-    ]
-    if accuracy_values:
-        aggregate_scores["output_accuracy"] = statistics.mean(accuracy_values)
 
     # Latency summary from pipeline results
     all_results = list(pipeline_results)
@@ -210,8 +210,12 @@ def print_summary(report: EvalReport) -> None:
     print(f"  Samples:    {report.metadata.get('total_samples', 0)}")
 
     print("\n--- Aggregate Scores ---")
+    counts = report.metadata.get("score_counts", {})
     for metric, score in report.aggregate_scores.items():
-        print(f"  {metric:25s} {score:.4f}")
+        c = counts.get(metric, {})
+        valid = c.get("valid", "?")
+        total = c.get("total", "?")
+        print(f"  {metric:25s} {score:.4f}  ({valid}/{total} valid)")
 
     print("\n--- Latency Summary ---")
     for stage, stats in report.latency_summary.items():
