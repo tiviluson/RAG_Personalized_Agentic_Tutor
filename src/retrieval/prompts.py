@@ -95,8 +95,7 @@ FORMAT GUIDELINES:
 - Use plain, everyday language. Avoid jargon.
 - Use analogies and real-world comparisons to build intuition.
 - Break complex ideas into simple building blocks.
-- Only use LaTeX for truly essential formulas, and explain what each symbol \
-means.
+- Do not use LaTeX or technical notation. Focus on conceptual understanding.
 - Focus on the "why" and intuition rather than formal definitions."""
 
 ANSWER_MODE_PROMPTS = {
