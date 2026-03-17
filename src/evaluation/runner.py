@@ -193,6 +193,7 @@ def load_pipeline_results(
     list[list[EvalPipelineResult]],
     list[str],
     int,
+    list[str | None],
 ]:
     """Load pipeline results from an intermediate JSON file.
 
@@ -202,7 +203,7 @@ def load_pipeline_results(
     Returns:
         tuple: (combined_samples, combined_results,
                 multi_turn_scenario_info, multi_turn_results,
-                dataset_names, num_single_turn)
+                dataset_names, num_single_turn, categories)
     """
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -213,12 +214,14 @@ def load_pipeline_results(
 
     combined_samples: list[TurnSample] = []
     combined_results: list[EvalPipelineResult] = []
+    categories: list[str | None] = []
 
     # Single-turn
     for entry in data["single_turn"]:
         sample, result = _deserialize_result(entry)
         combined_samples.append(sample)
         combined_results.append(result)
+        categories.append(entry.get("category"))
 
     # Multi-turn (flatten for RAGAS, keep structure for report)
     mt_scenario_info: list[dict] = []
@@ -230,6 +233,7 @@ def load_pipeline_results(
             combined_samples.append(sample)
             combined_results.append(result)
             scenario_results.append(result)
+            categories.append(turn_entry.get("category"))
         mt_results.append(scenario_results)
         mt_scenario_info.append({
             "scenario_index": scenario_data["scenario_index"],
@@ -249,6 +253,7 @@ def load_pipeline_results(
         mt_results,
         dataset_names,
         num_single_turn,
+        categories,
     )
 
 
@@ -425,6 +430,7 @@ async def run_scoring_stage(
         mt_results,
         dataset_names,
         num_single_turn,
+        categories,
     ) = load_pipeline_results(pipeline_results_path)
 
     # Build RAGAS dataset and run evaluation
@@ -447,16 +453,21 @@ async def run_scoring_stage(
     logger.info("Running output accuracy scoring...")
     accuracy_scores = await _run_output_accuracy(combined_samples, combined_results)
 
+    _RAGAS_KEY_MAP = {
+        "llm_context_precision_with_reference": "context_precision",
+    }
+
     # Merge scores
     per_sample_scores: list[dict] = []
     for i, ragas_score in enumerate(ragas_scores):
+        mapped_score = {}
+        for k, v in ragas_score.items():
+            if k in ("user_input", "response", "retrieved_contexts", "reference"):
+                continue
+            mapped_score[_RAGAS_KEY_MAP.get(k, k)] = v
         merged = {
             "question": combined_samples[i].question,
-            **{
-                k: v
-                for k, v in ragas_score.items()
-                if k not in ("user_input", "response", "retrieved_contexts", "reference")
-            },
+            **mapped_score,
         }
         if i < len(accuracy_scores):
             merged.update(accuracy_scores[i])
