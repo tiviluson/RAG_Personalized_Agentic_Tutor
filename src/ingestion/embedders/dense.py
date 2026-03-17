@@ -1,5 +1,7 @@
 """Dense embedding via Qwen3-Embedding-8B (local, sentence-transformers)."""
 
+import threading
+
 import torch
 from loguru import logger
 from sentence_transformers import SentenceTransformer
@@ -7,26 +9,30 @@ from sentence_transformers import SentenceTransformer
 from src.config import settings
 
 _model: SentenceTransformer | None = None
+_model_lock = threading.Lock()
 
 
 def _get_model() -> SentenceTransformer:
-    """Return a lazily-initialised Qwen3-Embedding model singleton.
+    """Return a lazily-initialised Qwen3-Embedding model singleton. Thread-safe.
 
     Returns:
         SentenceTransformer: The loaded embedding model.
     """
     global _model
-    if _model is None:
-        logger.info("Loading dense embedding model: {}...", settings.dense_embedding_model)
-        _model = SentenceTransformer(
-            settings.dense_embedding_model,
-            truncate_dim=settings.dense_embedding_dim,
-        )
-        logger.info(
-            "Dense model loaded (dim={}, device={})",
-            settings.dense_embedding_dim,
-            _model.device,
-        )
+    if _model is not None:
+        return _model
+    with _model_lock:
+        if _model is None:
+            logger.info("Loading dense embedding model: {}...", settings.dense_embedding_model)
+            _model = SentenceTransformer(
+                settings.dense_embedding_model,
+                truncate_dim=settings.dense_embedding_dim,
+            )
+            logger.info(
+                "Dense model loaded (dim={}, device={})",
+                settings.dense_embedding_dim,
+                _model.device,
+            )
     return _model
 
 
