@@ -182,7 +182,7 @@ def assemble_context(
                 page_num=meta.get("page_num"),
                 section=meta.get("section"),
                 chapter=meta.get("chapter"),
-                module_week=meta.get("module_week"),
+                module_week=str(mw) if (mw := meta.get("module_week")) is not None else None,
                 collection=chunk.collection,
                 content_category=meta.get("content_category"),
                 relevance_score=chunk.score,
