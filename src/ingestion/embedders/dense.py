@@ -27,6 +27,7 @@ def _get_model() -> SentenceTransformer:
             _model = SentenceTransformer(
                 settings.dense_embedding_model,
                 truncate_dim=settings.dense_embedding_dim,
+                model_kwargs={"torch_dtype": torch.float16},
             )
             logger.info(
                 "Dense model loaded (dim={}, device={})",
