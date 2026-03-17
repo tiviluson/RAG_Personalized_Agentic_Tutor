@@ -20,6 +20,34 @@ from src.config import settings
 from src.evaluation.datasets import EvalSample, MultiTurnEvalSample, TurnSample
 from src.evaluation.pipeline_wrapper import EvalPipelineResult
 
+
+def _patch_instructor_generate_multiple() -> None:
+    """Patch PydanticPrompt.generate_multiple to support n>1 for InstructorLLM.
+
+    RAGAS's InstructorLLM code path ignores the n parameter and always returns
+    1 generation. This patch fans out n>1 requests into n separate calls.
+    """
+    from ragas.llms.base import InstructorBaseRagasLLM
+    from ragas.prompt import PydanticPrompt
+
+    original = PydanticPrompt.generate_multiple
+
+    async def _patched(self, llm, data, n=1, **kwargs):
+        if isinstance(llm, InstructorBaseRagasLLM) and n > 1:
+            results = []
+            for _ in range(n):
+                result = await original(self, llm, data, n=1, **kwargs)
+                results.extend(result)
+            return results
+        return await original(self, llm, data, n=n, **kwargs)
+
+    PydanticPrompt.generate_multiple = _patched
+    logger.info("Patched PydanticPrompt.generate_multiple for InstructorLLM n>1 support")
+
+
+_patch_instructor_generate_multiple()
+
+
 # User-friendly metric name -> constructor mapping
 METRIC_REGISTRY: dict[str, type] = {
     "faithfulness": Faithfulness,
