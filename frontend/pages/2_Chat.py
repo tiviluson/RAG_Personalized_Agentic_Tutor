@@ -11,6 +11,8 @@ from loguru import logger
 # Add project root to path so Streamlit pages can import src.*
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from components.auth import require_auth
+
 st.set_page_config(page_title="RAG Tutor - Chat", layout="wide")
 
 API_BASE = "http://localhost:8000/api"
@@ -18,12 +20,7 @@ API_BASE = "http://localhost:8000/api"
 # ---------------------------------------------------------------------------
 # Auth guard
 # ---------------------------------------------------------------------------
-if not st.session_state.get("user_email"):
-    st.warning("Please sign in on the home page first.")
-    st.stop()
-
-user_email = st.session_state["user_email"]
-role = st.session_state.get("role", "student")
+user_email, _, role = require_auth()
 
 # ---------------------------------------------------------------------------
 # Sidebar: answer mode + filters

@@ -12,6 +12,7 @@ from loguru import logger
 # Add project root to path so Streamlit pages can import src.*
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from components.auth import require_auth
 from src.ingestion.types import DocType
 
 st.set_page_config(page_title="RAG Tutor - Upload", page_icon="", layout="wide")
@@ -22,12 +23,7 @@ POLL_INTERVAL_S = 2
 # ---------------------------------------------------------------------------
 # Auth guard
 # ---------------------------------------------------------------------------
-if not st.session_state.get("user_email"):
-    st.warning("Please sign in on the home page first.")
-    st.stop()
-
-role = st.session_state.get("role", "student")
-user_email = st.session_state["user_email"]
+user_email, _, role = require_auth()
 
 st.title("Upload Documents")
 

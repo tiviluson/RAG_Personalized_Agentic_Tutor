@@ -3,6 +3,8 @@
 import httpx
 import streamlit as st
 
+from components.auth import require_auth
+
 st.set_page_config(page_title="RAG Tutor - Dashboard", page_icon="", layout="wide")
 
 API_BASE = "http://localhost:8000/api"
@@ -10,9 +12,7 @@ API_BASE = "http://localhost:8000/api"
 # ---------------------------------------------------------------------------
 # Auth guard
 # ---------------------------------------------------------------------------
-if not st.session_state.get("user_email"):
-    st.warning("Please sign in on the home page first.")
-    st.stop()
+require_auth()
 
 st.title("Collection Dashboard")
 
